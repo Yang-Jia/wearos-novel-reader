@@ -1,0 +1,13 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+app/build/
+wear-novel-reader-debug.apk
+*.log
+*.jks
+*.keystore
