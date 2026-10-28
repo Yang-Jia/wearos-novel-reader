@@ -215,7 +215,7 @@
 - 支持 `.txt` 和 `.epub`
 - 导入前会校验扩展名
 - 文件会先复制到应用缓存，再解析入库
-- 原始文件不会保留
+- 原始文件不会被删除；导入完成后只清理应用缓存中的临时副本
 - 如果手表没有可用的系统文件选择器，会提示改用 Inbox 或 Wi-Fi 传书
 
 ### 2. Inbox 导入
@@ -237,13 +237,21 @@ Inbox 路径：
 /sdcard/Android/data/com.wear.novelreader/files/inbox/imported/
 ```
 
-- 导入失败的文件保留在原目录，方便排查
+- 导入失败的文件会移动到：
+
+```text
+/sdcard/Android/data/com.wear.novelreader/files/inbox/failed/
+```
+
+- 如果失败文件移动失败，则保留在 Inbox 原位置，方便排查
+- 导入被取消时，文件保留在 Inbox 原位置
 - Inbox 和 Wi-Fi 传书使用不同目录
 
 ### 3. 分享 / 打开导入
 
 - 支持其他 App 通过 `ACTION_SEND` 分享 TXT / EPUB
 - 支持 `ACTION_VIEW` 打开 `content://` 或 `file://` 文件
+- 只读取来源 URI，不会删除或移动分享来源文件
 - 与系统文件选择器共用同一套解析、清洗和入库流程
 
 ### 4. 导入限制
@@ -798,6 +806,11 @@ adb shell run-as com.wear.novelreader ls files/library
 ### 为什么阅读页没有页码和章节标题了？
 
 这是当前界面设计：正文占满安全区，章节名和进度移到阅读菜单中查看。点击正文中间（滚动模式为任意位置）可打开菜单。
+
+### 本地导入会删除原文件吗？
+
+- 系统文件选择器、系统分享或打开方式导入：不会删除原文件，只复制到应用缓存，导入结束后清理缓存副本。
+- Inbox 导入：会把文件移动到 `inbox/imported/` 或 `inbox/failed/`，不是直接删除；取消导入时文件保留在 Inbox 原位置。
 
 ---
 
