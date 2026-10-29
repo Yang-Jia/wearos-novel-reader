@@ -51,6 +51,30 @@ class MultipartParserTest {
     }
 
     @Test
+    fun parsesFileWhenBoundaryCrossesReadBuffer() {
+        val dir = Files.createTempDirectory("multipart-large").toFile()
+        try {
+            val boundary = "large-boundary"
+            val filler = "a".repeat(64 * 1024 - 5)
+            val body = buildString {
+                append("--$boundary\r\n")
+                append("Content-Disposition: form-data; name=\"file\"; filename=\"large.txt\"\r\n\r\n")
+                append(filler)
+                append("\r\n--$boundary--\r\n")
+            }
+            val parts = MultipartParser.parse(
+                ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)),
+                boundary,
+                dir
+            )
+            assertEquals(1, parts.size)
+            assertEquals(filler, parts[0].tempFile!!.readText())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun ignoresNonFileParts() {
         val dir = Files.createTempDirectory("multipart-field").toFile()
         try {

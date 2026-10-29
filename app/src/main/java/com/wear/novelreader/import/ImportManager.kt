@@ -47,6 +47,7 @@ class ImportManager(
         val isCancelled = { !coroutine.isActive }
         val summary = ImportSummary()
         val cacheDir = File(context.cacheDir, "uri-import").also { it.mkdirs() }
+        cleanupUriCache(cacheDir)
         uris.forEachIndexed { index, uri ->
             coroutine.ensureActive()
             val name = queryDisplayName(uri) ?: "导入书籍-$index"
@@ -192,6 +193,15 @@ class ImportManager(
         }
     }
 
+    private fun cleanupUriCache(cacheDir: File) {
+        val cutoff = System.currentTimeMillis() - URI_CACHE_MAX_AGE_MS
+        cacheDir.listFiles()?.forEach { file ->
+            if (file.isFile && file.name.startsWith("src-") && file.lastModified() < cutoff) {
+                file.delete()
+            }
+        }
+    }
+
     private fun moveToImported(file: File) {
         val importedDir = File(inboxDir, "imported").also { it.mkdirs() }
         moveFile(file, importedDir)
@@ -221,6 +231,7 @@ class ImportManager(
 
     companion object {
         private const val MAX_BYTES = 80L * 1024L * 1024L
+        private const val URI_CACHE_MAX_AGE_MS = 60L * 60L * 1000L
     }
 }
 

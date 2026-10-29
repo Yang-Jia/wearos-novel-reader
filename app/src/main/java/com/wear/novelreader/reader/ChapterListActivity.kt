@@ -1,10 +1,12 @@
 ﻿package com.wear.novelreader.reader
 
 import android.content.Intent
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.LayoutInflater
+import android.view.TouchDelegate
 import android.view.WindowManager
 import android.view.ViewGroup
 import android.widget.TextView
@@ -67,6 +69,15 @@ class ChapterListActivity : ComponentActivity() {
                 Intent(this, ChapterJumpActivity::class.java)
                     .putExtra(ChapterJumpActivity.EXTRA_BOOK_ID, book.id)
             )
+        }
+        binding.jumpButton.post {
+            val parent = binding.jumpButton.parent as? android.view.View ?: return@post
+            val hit = Rect()
+            binding.jumpButton.getHitRect(hit)
+            val extraX = (6 * resources.displayMetrics.density).toInt()
+            val extraY = (4 * resources.displayMetrics.density).toInt()
+            hit.inset(-extraX, -extraY)
+            parent.touchDelegate = TouchDelegate(hit, binding.jumpButton)
         }
         val chapterAdapter = ChapterAdapter(book, current, currentOffset) { index ->
             setResult(

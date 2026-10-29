@@ -14,6 +14,7 @@ import java.net.Socket
 import java.net.SocketException
 import java.util.Collections
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -118,7 +119,12 @@ class TransferServer(
             }
             val method = parts[0].uppercase()
             val path = parts[1].substringBefore('?')
-            val headers = readHeaders(input)
+            val headers = try {
+                readHeaders(input)
+            } catch (_: IOException) {
+                respond(output, 400, "Bad Request", "text/plain; charset=utf-8", "headers too large".toByteArray())
+                return
+            }
             val tooLarge = method == "POST" && path == "/upload" &&
                 (headers["content-length"]?.toLongOrNull() ?: 0L) > maxUploadBytes
             if (tooLarge) {
@@ -192,7 +198,7 @@ class TransferServer(
             else -> LimitedInputStream(input, maxUploadBytes)
         }
 
-        val requestDir = File(uploadDir, "req-${System.nanoTime()}").also { it.mkdirs() }
+        val requestDir = File(uploadDir, "req-${UUID.randomUUID()}").also { it.mkdirs() }
         var files: List<MultipartParser.Part> = emptyList()
         try {
             files = MultipartParser.parse(bodyStream, boundary, requestDir, maxUploadBytes)
@@ -258,9 +264,12 @@ class TransferServer(
 
     private fun readHeaders(input: InputStream): Map<String, String> {
         val headers = LinkedHashMap<String, String>()
+        var totalBytes = 0
         while (true) {
             val line = readLine(input) ?: break
             if (line.isEmpty()) break
+            totalBytes += line.length + 2
+            if (totalBytes > MAX_HEADER_BYTES) throw IOException("请求头过大")
             val colon = line.indexOf(':')
             if (colon <= 0) continue
             val key = line.substring(0, colon).trim().lowercase()
@@ -394,6 +403,10 @@ class TransferServer(
             val first = delegate.read()
             if (first == '\r'.code) delegate.read()
         }
+    }
+
+    private companion object {
+        const val MAX_HEADER_BYTES = 64 * 1024
     }
 }
 
