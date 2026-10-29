@@ -71,6 +71,10 @@
             android:theme="@style/Theme.WearNovel.Reader" />
 
         <activity
+            android:name=".reader.ChapterJumpActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".reader.ChapterListActivity"
             android:exported="false" />
 

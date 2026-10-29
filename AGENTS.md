@@ -6,7 +6,7 @@
 - Plain XML + ViewBinding; no Compose, Room, DI, Navigation, WorkManager, CI,
   formatter, or separate typecheck target.
 - Entrypoints: `NovelApp` creates `LibraryRepository`, `Prefs`, `ImportManager`.
-  Activities: Main (`ui`), Reader/ChapterList/FontColor (`reader`), Wi-Fi (`transfer`).
+  Activities: Main (`ui`), Reader/ChapterList/FontColor/ChapterJump (`reader`), Wi-Fi (`transfer`).
 - User-facing text and `README.md` are Chinese. Preserve UTF-8 without BOM; Windows
   PowerShell may display valid Chinese as mojibake.
 - `README.md` is the detailed behavior reference. Trust code/config over stale prose.
@@ -28,7 +28,7 @@ Single test class/method:
 
 - Lint has `abortOnError = false`; success does not mean clean. Inspect
   `app/build/reports/lint-results-debug.txt`.
-- Tests are JVM-only (no instrumentation); currently 36 tests.
+- Tests are JVM-only (no instrumentation); currently 41 tests.
 - Debug APK: `app/build/outputs/apk/debug/app-debug.apk`.
   When delivering, copy it to root `wear-novel-reader-debug.apk`.
 - Install:
@@ -61,6 +61,10 @@ Single test class/method:
   stay theme-based. Screen-on is controlled by the reader menu toggle.
 - ChapterList receives current chapter and char offset from Reader; keep that offset
   for the current chapter progress rather than reloading possibly stale saved progress.
+- ChapterJump uses auto-generated decimal range levels (e.g. 100/10/1 for 893,
+  10000/1000/.../1 for 40000), breadcrumbs, and full `Chapter.title` at leaf level.
+  Do not replace it with fixed digit pickers or truncate leaf titles. Its directory-page
+  entry is the right-side button outside the boxed content area; verify round-edge clipping.
 - Import workdirs are `.tmp-*`; cancellation or failure must delete the current workdir.
   Do not wrap `OutOfMemoryError` as `IOException`.
 - Wi-Fi uses `TransferService` only while `WifiTransferActivity` is visible. Start/stop
