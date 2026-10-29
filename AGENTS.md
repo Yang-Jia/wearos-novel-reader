@@ -28,7 +28,7 @@ Single test class/method:
 
 - Lint has `abortOnError = false`; success does not mean clean. Inspect
   `app/build/reports/lint-results-debug.txt`.
-- Tests are JVM-only (no instrumentation); currently 41 tests.
+- Tests are JVM-only (no instrumentation); currently 44 tests.
 - Debug APK: `app/build/outputs/apk/debug/app-debug.apk`.
   When delivering, copy it to root `wear-novel-reader-debug.apk`.
 - Install:

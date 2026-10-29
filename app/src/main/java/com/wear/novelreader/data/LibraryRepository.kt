@@ -1,5 +1,6 @@
 package com.wear.novelreader.data
 
+import android.util.Log
 import com.wear.novelreader.util.FileUtil
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -124,24 +125,35 @@ class LibraryRepository(val root: File) {
             value
         }
         writeExecutor.execute {
-            try {
-                synchronized(lock) {
-                    val dir = bookDir(id)
-                    if (!dir.isDirectory) return@synchronized
-                    FileUtil.writeText(
-                        File(dir, "progress.json"),
-                        Json.progressToJson(saved).toString()
-                    )
-                }
-            } catch (_: Exception) {
+            if (!writeProgressFile(id, saved)) {
+                writeProgressFile(id, saved)
             }
         }
         mutableChanges.tryEmit(Unit)
     }
 
+    private fun writeProgressFile(id: String, progress: BookProgress): Boolean {
+        return try {
+            synchronized(lock) {
+                val dir = bookDir(id)
+                if (!dir.isDirectory) return true
+                FileUtil.writeText(
+                    File(dir, "progress.json"),
+                    Json.progressToJson(progress).toString()
+                )
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "写入阅读进度失败: $id", e)
+            false
+        }
+    }
+
     fun flushWrites() {
         val barrier = writeExecutor.submit {}
-        runCatching { barrier.get(2, TimeUnit.SECONDS) }
+        runCatching { barrier.get(250, TimeUnit.MILLISECONDS) }
+            .exceptionOrNull()
+            ?.let { Log.w(TAG, "进度写入队列 flush 超时", it) }
     }
 
     fun deleteBook(id: String): File? {
@@ -251,5 +263,9 @@ class LibraryRepository(val root: File) {
             compareByDescending<BookItem> { maxOf(it.progress.updatedAt, it.meta.addedAt) }
                 .thenByDescending { it.meta.addedAt }
         )
+    }
+
+    private companion object {
+        const val TAG = "LibraryRepository"
     }
 }

@@ -1,7 +1,6 @@
 package com.wear.novelreader.import
 
 import com.wear.novelreader.data.Chapter
-import com.wear.novelreader.util.FileUtil
 import java.io.File
 import java.util.Locale
 
@@ -77,7 +76,9 @@ class ChapterWriter(
         }
         val fileName = String.format(Locale.US, "%04d.txt", index + 1)
         val file = File(chaptersDir, fileName)
-        FileUtil.writeText(file, text)
+        file.outputStream().buffered(32 * 1024).use { output ->
+            output.write(text.toByteArray(Charsets.UTF_8))
+        }
         chapters.add(Chapter(title = title, file = fileName, chars = text.length))
         index++
         chunkInChapter++

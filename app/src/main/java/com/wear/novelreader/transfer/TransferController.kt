@@ -7,6 +7,7 @@ import com.wear.novelreader.data.PublicBook
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -66,12 +67,16 @@ object TransferController {
                         synchronized(importLock) {
                             try {
                                 val book = app.importManager.importFile(file, name) { stopping }
-                                successCount++
-                                lastUpload = book.title
-                                _state.value = _state.value.copy(
-                                    uploads = successCount,
-                                    lastUpload = lastUpload
-                                )
+                                if (runGeneration == generation) {
+                                    successCount++
+                                    lastUpload = book.title
+                                    _state.update {
+                                        it.copy(
+                                            uploads = successCount,
+                                            lastUpload = lastUpload
+                                        )
+                                    }
+                                }
                                 UploadResult(true, book.title, app.getString(R.string.wifi_imported, book.chapters.size))
                             } catch (e: Exception) {
                                 UploadResult(false, null, e.message ?: app.getString(R.string.import_generic_failed))
@@ -79,7 +84,9 @@ object TransferController {
                         }
                     },
                     onActiveUploadsChanged = { active ->
-                        _state.value = _state.value.copy(activeUploads = active)
+                        if (runGeneration == generation) {
+                            _state.update { it.copy(activeUploads = active) }
+                        }
                     }
                 )
                 created = srv

@@ -14,20 +14,28 @@ data class BookMeta(
     val addedAt: Long,
     val chapters: List<Chapter>
 ) {
-    val totalChars: Int get() = chapters.sumOf { it.chars }
+    private val chapterStarts: IntArray by lazy {
+        val starts = IntArray(chapters.size + 1)
+        var total = 0
+        for (i in chapters.indices) {
+            starts[i] = total
+            total += chapters[i].chars
+        }
+        starts[chapters.size] = total
+        starts
+    }
+
+    val totalChars: Int get() = chapterStarts.last()
 
     fun charsBefore(index: Int): Int {
-        var sum = 0
-        for (i in 0 until index.coerceAtMost(chapters.size)) {
-            sum += chapters[i].chars
-        }
-        return sum
+        return chapterStarts[index.coerceIn(0, chapters.size)]
     }
 
     fun percentAt(chapterIndex: Int, charOffset: Int): Int {
-        if (totalChars <= 0) return 0
+        val total = totalChars
+        if (total <= 0) return 0
         val before = charsBefore(chapterIndex)
-        val value = (before + charOffset).toFloat() / totalChars
+        val value = (before + charOffset).toFloat() / total
         return (value * 100).toInt().coerceIn(0, 100)
     }
 }

@@ -8,7 +8,6 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.WindowManager
 import android.widget.Button
 import android.widget.GridLayout
 import androidx.activity.ComponentActivity
@@ -44,8 +43,8 @@ class FontColorActivity : ComponentActivity() {
         window.setBackgroundDrawable(ColorDrawable(theme.bg))
         binding = ActivityFontColorBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        applyBrightness(settings.brightness)
+        ReaderWindowHelper.applyKeepScreenOn(window, true)
+        ReaderWindowHelper.applyBrightness(window, settings.brightness)
         WearStatusBar.attach(binding.root, binding.contentLayout).applyColors(
             theme.text,
             Color.argb(
@@ -176,16 +175,6 @@ class FontColorActivity : ComponentActivity() {
 
     private fun contrastColor(color: Int): Int {
         return if (Color.luminance(color) > 0.5f) Color.BLACK else Color.WHITE
-    }
-
-    private fun applyBrightness(brightness: Float) {
-        val attributes = window.attributes
-        attributes.screenBrightness = if (brightness < 0f) {
-            WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-        } else {
-            brightness.coerceIn(0.1f, 1f)
-        }
-        window.attributes = attributes
     }
 
     private fun dp(value: Int): Int {

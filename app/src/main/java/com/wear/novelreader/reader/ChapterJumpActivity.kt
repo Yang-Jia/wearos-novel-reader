@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wear.novelreader.NovelApp
@@ -21,6 +22,9 @@ import com.wear.novelreader.databinding.ActivityChapterJumpBinding
 import com.wear.novelreader.databinding.ItemChapterJumpBinding
 import com.wear.novelreader.ui.EdgeBackTouchListener
 import com.wear.novelreader.ui.WearStatusBar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ChapterJumpActivity : ComponentActivity() {
 
@@ -29,35 +33,28 @@ class ChapterJumpActivity : ComponentActivity() {
     private lateinit var levels: List<Int>
     private val path = mutableListOf<ChapterRange>()
     private var confirming = false
-    private var confirmChapter: Chapter? = null
     private var confirmNumber = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as NovelApp
         val bookId = intent.getStringExtra(EXTRA_BOOK_ID)
-        book = bookId?.let { app.repository.getBook(it) } ?: run {
-            finish()
-            return
-        }
-        if (book.chapters.isEmpty()) {
-            finish()
-            return
-        }
-        levels = ChapterJumpPlan.levels(book.chapters.size)
         binding = ActivityChapterJumpBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WearStatusBar.attach(binding.root, binding.contentLayout)
         binding.root.setOnTouchListener(EdgeBackTouchListener(this))
 
+        binding.breadcrumbScroll.visibility = View.GONE
+        binding.jumpList.visibility = View.GONE
+        binding.stepLabel.text = getString(R.string.loading)
         binding.backButton.setOnClickListener { navigateBack() }
         binding.jumpList.layoutManager = LinearLayoutManager(this)
         binding.jumpList.itemAnimator = null
         binding.confirmContainer.setOnClickListener { }
         binding.confirmCard.setOnClickListener { }
         binding.confirmJump.setOnClickListener {
-            if (confirmChapter == null) return@setOnClickListener
+            if (!confirming) return@setOnClickListener
             setResult(
                 RESULT_OK,
                 Intent().putExtra(EXTRA_CHAPTER_INDEX, confirmNumber - 1)
@@ -66,7 +63,6 @@ class ChapterJumpActivity : ComponentActivity() {
         }
         binding.confirmReselect.setOnClickListener {
             confirming = false
-            confirmChapter = null
             binding.confirmContainer.visibility = View.GONE
         }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -74,13 +70,25 @@ class ChapterJumpActivity : ComponentActivity() {
                 navigateBack()
             }
         })
-        render()
+        lifecycleScope.launch {
+            val loaded = withContext(Dispatchers.IO) {
+                bookId?.let { app.repository.getBook(it) }
+            }
+            if (loaded == null || loaded.chapters.isEmpty()) {
+                finish()
+                return@launch
+            }
+            book = loaded
+            levels = ChapterJumpPlan.levels(book.chapters.size)
+            binding.breadcrumbScroll.visibility = View.VISIBLE
+            binding.jumpList.visibility = View.VISIBLE
+            render()
+        }
     }
 
     private fun navigateBack() {
         if (confirming) {
             confirming = false
-            confirmChapter = null
             binding.confirmContainer.visibility = View.GONE
             return
         }
@@ -132,7 +140,6 @@ class ChapterJumpActivity : ComponentActivity() {
         binding.jumpList.adapter = JumpAdapter(entries) { entry ->
             if (entry.leaf) {
                 confirmNumber = entry.number
-                confirmChapter = book.chapters[entry.number - 1]
                 confirming = true
                 binding.confirmChapter.text = entry.title
                 binding.confirmContainer.visibility = View.VISIBLE
@@ -170,7 +177,7 @@ class ChapterJumpActivity : ComponentActivity() {
     private fun addCrumb(label: String, active: Boolean, onClick: () -> Unit) {
         val text = TextView(this).apply {
             text = label
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
             setTextColor(getColor(if (active) R.color.accent else R.color.text_secondary))
             gravity = Gravity.CENTER
             setPadding(dp(4), dp(2), dp(4), dp(2))
@@ -183,7 +190,7 @@ class ChapterJumpActivity : ComponentActivity() {
     private fun addSeparator() {
         val text = TextView(this).apply {
             text = getString(R.string.chapter_jump_arrow)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
             setTextColor(getColor(R.color.text_secondary))
             setPadding(dp(1), 0, dp(1), 0)
         }

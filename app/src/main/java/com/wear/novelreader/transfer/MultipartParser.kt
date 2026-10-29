@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.io.PushbackInputStream
 import java.net.URLDecoder
 import java.util.UUID
 
@@ -29,19 +30,20 @@ object MultipartParser {
         maxBytes: Long = 100L * 1024L * 1024L
     ): List<Part> {
         tempDir.mkdirs()
+        val source = PushbackInputStream(input, 128 * 1024)
         val parts = mutableListOf<Part>()
         val marker = "\r\n--$boundary".toByteArray(Charsets.ISO_8859_1)
         val created = mutableListOf<File>()
         try {
-            var line = readLine(input)
-            while (line != null && line.isEmpty()) line = readLine(input)
+            var line = readLine(source)
+            while (line != null && line.isEmpty()) line = readLine(source)
             if (line == null) throw IllegalArgumentException("multipart 格式错误")
             if (!line.startsWith("--$boundary")) throw IllegalArgumentException("multipart boundary 不匹配")
             if (line.endsWith("--")) return emptyList()
 
             var total = 0L
             while (true) {
-                val headers = readHeaders(input)
+                val headers = readHeaders(source)
                 val disposition = headers["content-disposition"] ?: ""
                 val fieldName = param(disposition, "name") ?: ""
                 val fileName = param(disposition, "filename")
@@ -55,7 +57,7 @@ object MultipartParser {
                 val sink = file?.let { java.io.BufferedOutputStream(it.outputStream(), 32 * 1024) }
                 val counter = CountingOutputStream(sink, maxBytes)
                 val found = try {
-                    BoundaryReader(input, marker).transferTo(if (hasFile) counter else null)
+                    BoundaryReader(source, marker).transferTo(if (hasFile) counter else null)
                 } finally {
                     sink?.flush()
                     sink?.close()
@@ -68,11 +70,11 @@ object MultipartParser {
                     parts.add(Part(fieldName, sanitize(fileName ?: ""), file))
                 }
 
-                val b1 = input.read()
-                val b2 = input.read()
+                val b1 = source.read()
+                val b2 = source.read()
                 if (b1 < 0) break
                 if (b1 == '-'.code && b2 == '-'.code) {
-                    readLine(input)
+                    readLine(source)
                     break
                 }
                 if (!(b1 == '\r'.code && b2 == '\n'.code)) {
@@ -181,33 +183,60 @@ object MultipartParser {
     }
 
     private class BoundaryReader(
-        private val input: InputStream,
+        private val input: PushbackInputStream,
         private val marker: ByteArray
     ) {
         fun transferTo(output: OutputStream?): Boolean {
             if (marker.isEmpty()) return false
-            val window = ByteArray(marker.size)
-            var count = 0
+            val buffer = ByteArray(64 * 1024)
+            var carry = ByteArray(0)
             while (true) {
-                val value = input.read()
-                if (value < 0) return false
-                val b = value.toByte()
-                if (count < marker.size) {
-                    window[count++] = b
-                    if (count == marker.size && b == marker[marker.size - 1] &&
-                        window.contentEquals(marker)
-                    ) {
-                        return true
-                    }
+                val read = input.read(buffer)
+                if (read < 0) return false
+                if (read == 0) continue
+                val data = if (carry.isEmpty()) {
+                    buffer.copyOf(read)
                 } else {
-                    output?.write(window[0].toInt())
-                    System.arraycopy(window, 1, window, 0, marker.size - 1)
-                    window[marker.size - 1] = b
-                    if (b == marker[marker.size - 1] && window.contentEquals(marker)) {
-                        return true
+                    ByteArray(carry.size + read).also {
+                        System.arraycopy(carry, 0, it, 0, carry.size)
+                        System.arraycopy(buffer, 0, it, carry.size, read)
                     }
                 }
+                val index = indexOf(data, marker)
+                if (index >= 0) {
+                    if (index > 0) output?.write(data, 0, index)
+                    val trailingStart = index + marker.size
+                    val trailing = data.size - trailingStart
+                    if (trailing > 0) {
+                        input.unread(data, trailingStart, trailing)
+                    }
+                    return true
+                }
+                val keep = minOf(marker.size - 1, data.size)
+                val writeLength = data.size - keep
+                if (writeLength > 0) {
+                    output?.write(data, 0, writeLength)
+                }
+                carry = if (keep == 0) {
+                    ByteArray(0)
+                } else {
+                    data.copyOfRange(data.size - keep, data.size)
+                }
             }
+        }
+
+        private fun indexOf(data: ByteArray, pattern: ByteArray): Int {
+            val last = data.size - pattern.size
+            var i = 0
+            while (i <= last) {
+                var j = 0
+                while (j < pattern.size && data[i + j] == pattern[j]) {
+                    j++
+                }
+                if (j == pattern.size) return i
+                i++
+            }
+            return -1
         }
     }
 }

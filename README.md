@@ -666,13 +666,14 @@ android.overridePathCheck=true
 - `TextCleanerTest`：缩进、空行清理、标题、硬换行合并
 - `LibraryRepositoryTest`：书库提交、读取、进度、删除、缓存快照与外部变更失效
 - `PaginationTest`：分页行范围
-- `MultipartParserTest`：multipart 多文件、字段、截断数据
+- `MultipartParserTest`：multipart 多文件、字段、截断数据、跨读缓冲 boundary
 - `TransferServerTest`：HTTP 页面、书籍接口、普通上传、chunked 上传
 - `ChapterJumpPlanTest`：快速跳转层级、范围切分、子范围数量
+- `BookMetaTest`：章节起始偏移缓存、空书百分比和边界索引
 
 当前验证结果：
 
-- 41 个 JVM 测试全部通过
+- 44 个 JVM 测试全部通过
 - lint 0 错误
 - 已在手表上验证：
   - 本地/分享导入

@@ -21,7 +21,6 @@ import android.view.VelocityTracker
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -66,8 +65,6 @@ class ReaderActivity : ComponentActivity() {
     private var chapterLayout: StaticLayout? = null
     private var pages: List<PageLines> = emptyList()
     private var pageIndex = 0
-    private var lastWidth = 0
-    private var lastHeight = 0
     private var loadToken = 0
     private var loadJob: Job? = null
     private var reloadOnResume = false
@@ -119,8 +116,7 @@ class ReaderActivity : ComponentActivity() {
     }
     private val scrollHandler = Handler(Looper.getMainLooper())
     private val scrollSaveRunnable = Runnable { onScrollSettled() }
-    private val progressHandler = Handler(Looper.getMainLooper())
-    private val progressSaveRunnable = Runnable { submitProgressSave() }
+    private lateinit var progressController: ReaderProgressController
 
     private val chapterListLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -177,6 +173,13 @@ class ReaderActivity : ComponentActivity() {
         binding = ActivityReaderBinding.inflate(layoutInflater)
         setContentView(binding.root)
         statusBar = WearStatusBar.attach(binding.root, binding.contentLayout)
+        progressController = ReaderProgressController(app.repository) {
+            if (currentText.isEmpty() || !::book.isInitialized) {
+                null
+            } else {
+                book.id to BookProgress(chapterIndex, currentOffset())
+            }
+        }
 
         chapterLayoutManager = LinearLayoutManager(this)
         chapterAdapter = ChapterScrollAdapter(
@@ -312,8 +315,6 @@ class ReaderActivity : ComponentActivity() {
             val h = bottom - top
             if (w == oldRight - oldLeft && h == oldBottom - oldTop) return@addOnLayoutChangeListener
             if (w <= 0 || h <= 0) return@addOnLayoutChangeListener
-            lastWidth = w
-            lastHeight = h
             if (currentText.isNotEmpty() && settings.mode == ReadingMode.PAGE) {
                 rerender(currentOffset())
             }
@@ -384,7 +385,9 @@ class ReaderActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         cancelRotaryAnimation()
-        flushProgress()
+        if (::progressController.isInitialized) {
+            flushProgress()
+        }
         scrollHandler.removeCallbacks(scrollSaveRunnable)
     }
 
@@ -413,7 +416,9 @@ class ReaderActivity : ComponentActivity() {
         loadJob?.cancel()
         chapterCache.evictAll()
         scrollHandler.removeCallbacks(scrollSaveRunnable)
-        progressHandler.removeCallbacks(progressSaveRunnable)
+        if (::progressController.isInitialized) {
+            progressController.cancel()
+        }
         super.onDestroy()
     }
 
@@ -483,12 +488,16 @@ class ReaderActivity : ComponentActivity() {
         if (!::book.isInitialized || currentText.isEmpty()) return
         val center = chapterIndex
         val targets = listOf(center + 1, center - 1, center + 2, center - 2)
-            .filter { it in book.chapters.indices && chapterCache.get(it) == null }
+            .filter {
+                it in book.chapters.indices &&
+                    chapterCache.get(it) == null &&
+                    !chapterLoadJobs.containsKey(it)
+            }
         if (targets.isEmpty()) return
         preloadJob = lifecycleScope.launch {
             for (index in targets) {
                 if (!isActive) break
-                if (chapterCache.get(index) != null) continue
+                if (chapterCache.get(index) != null || chapterLoadJobs.containsKey(index)) continue
                 val text = try {
                     withContext(Dispatchers.IO) { app.repository.readChapter(book, index) }
                 } catch (e: CancellationException) {
@@ -988,21 +997,11 @@ class ReaderActivity : ComponentActivity() {
 
     private fun scheduleProgressSave() {
         if (currentText.isEmpty() || !::book.isInitialized) return
-        progressHandler.removeCallbacks(progressSaveRunnable)
-        progressHandler.postDelayed(progressSaveRunnable, PROGRESS_SAVE_DELAY_MS)
+        progressController.schedule()
     }
 
     private fun flushProgress() {
-        progressHandler.removeCallbacks(progressSaveRunnable)
-        submitProgressSave()
-        app.repository.flushWrites()
-    }
-
-    private fun submitProgressSave() {
-        if (currentText.isEmpty() || !::book.isInitialized) return
-        val bookId = book.id
-        val progress = BookProgress(chapterIndex, currentOffset())
-        runCatching { app.repository.saveProgress(bookId, progress) }
+        progressController.flush()
     }
 
     private fun showMenu() {
@@ -1021,9 +1020,10 @@ class ReaderActivity : ComponentActivity() {
 
     private fun updateMenuLabels() {
         if (!::book.isInitialized) return
-        binding.menuTitle.text = "${book.title} · ${book.percentAt(chapterIndex, currentOffset())}%"
+        val offset = currentOffset()
+        binding.menuTitle.text = "${book.title} · ${book.percentAt(chapterIndex, offset)}%"
         val chapter = book.chapters.getOrNull(chapterIndex)
-        val percent = book.percentAt(chapterIndex, if (currentText.isEmpty()) 0 else currentOffset())
+        val percent = book.percentAt(chapterIndex, if (currentText.isEmpty()) 0 else offset)
         binding.menuProgress.text = buildString {
             append(chapter?.title ?: "")
             append(" · ")
@@ -1151,27 +1151,16 @@ class ReaderActivity : ComponentActivity() {
     }
 
     private fun applyBrightness() {
-        val attributes = window.attributes
-        attributes.screenBrightness = if (settings.brightness < 0f) {
-            WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-        } else {
-            settings.brightness.coerceIn(0.1f, 1f)
-        }
-        window.attributes = attributes
+        ReaderWindowHelper.applyBrightness(window, settings.brightness)
     }
 
     private fun applyKeepScreenOn() {
-        if (settings.keepScreenOn) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
+        ReaderWindowHelper.applyKeepScreenOn(window, settings.keepScreenOn)
     }
 
     companion object {
         const val EXTRA_BOOK_ID = "book_id"
         const val EXTRA_CHAPTER = "chapter"
-        private const val PROGRESS_SAVE_DELAY_MS = 2500L
         private const val ROTARY_DP_PER_DETENT = 1f
         private const val CHAPTER_CACHE_SIZE = 5
     }

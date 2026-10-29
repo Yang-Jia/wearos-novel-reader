@@ -9,8 +9,6 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -43,11 +41,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var app: NovelApp
     private lateinit var adapter: BookAdapter
+    private val importUi by lazy { ImportUiController(this) }
     private var importing = false
     private var autoInboxChecked = false
-    private var importDialog: AlertDialog? = null
-    private var importProgress: ProgressBar? = null
-    private var importLabel: TextView? = null
     private var refreshJob: Job? = null
     private var importJob: Job? = null
     private var deleteJob: Job? = null
@@ -145,7 +141,7 @@ class MainActivity : ComponentActivity() {
             pendingDeleteTitle = null
         }
         importing = false
-        dismissImportUi()
+        importUi.dismiss()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -411,12 +407,12 @@ class MainActivity : ComponentActivity() {
     private fun startUriImport(uris: List<Uri>) {
         if (importing) return
         importing = true
-        showImportUi(uris.size)
+        importUi.show(uris.size)
         val token = ++importToken
         val job = lifecycleScope.launch {
             try {
                 val summary = app.importManager.importUris(uris) { index, total, name ->
-                    runOnUiThread { updateImportUi(index, total, name) }
+                    runOnUiThread { importUi.update(index, total, name) }
                 }
                 if (token == importToken) finishImport(summary)
             } catch (_: ImportCancelledException) {
@@ -427,7 +423,7 @@ class MainActivity : ComponentActivity() {
                 if (token == importToken) {
                     importing = false
                     importJob = null
-                    dismissImportUi()
+                    importUi.dismiss()
                 }
             }
         }
@@ -437,12 +433,12 @@ class MainActivity : ComponentActivity() {
     private fun startInboxImport() {
         if (importing) return
         importing = true
-        showImportUi(1)
+        importUi.show(1)
         val token = ++importToken
         val job = lifecycleScope.launch {
             try {
                 val summary = app.importManager.importInbox { index, total, name ->
-                    runOnUiThread { updateImportUi(index, total, name) }
+                    runOnUiThread { importUi.update(index, total, name) }
                 }
                 if (token == importToken) finishImport(summary)
             } catch (_: ImportCancelledException) {
@@ -453,7 +449,7 @@ class MainActivity : ComponentActivity() {
                 if (token == importToken) {
                     importing = false
                     importJob = null
-                    dismissImportUi()
+                    importUi.dismiss()
                 }
             }
         }
@@ -461,7 +457,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun finishImport(summary: ImportManager.ImportSummary) {
-        dismissImportUi()
+        importUi.dismiss()
         refreshBooks()
         if (summary.success.isEmpty() && summary.failures.isEmpty()) {
             Toast.makeText(this, R.string.import_none, Toast.LENGTH_SHORT).show()
@@ -485,52 +481,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun showImportUi(total: Int) {
-        if (importDialog != null) return
-        val density = resources.displayMetrics.density
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            val pad = (16 * density).toInt()
-            setPadding(pad, (8 * density).toInt(), pad, 0)
-        }
-        val label = TextView(this).apply {
-            setTextColor(getColor(R.color.text_primary))
-            textSize = 12f
-            setPadding(0, 0, 0, (8 * density).toInt())
-        }
-        val progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = total.coerceAtLeast(1)
-            this.progress = 0
-            progressTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.accent))
-        }
-        container.addView(label)
-        container.addView(progress)
-        importLabel = label
-        importProgress = progress
-        importDialog = AlertDialog.Builder(this)
-            .setTitle(R.string.importing_title)
-            .setView(container)
-            .setCancelable(false)
-            .create()
-            .also { it.show() }
-        updateImportUi(0, total, "")
-    }
-
-    private fun updateImportUi(index: Int, total: Int, name: String) {
-        importProgress?.max = total.coerceAtLeast(1)
-        importProgress?.progress = index
-        importLabel?.text = getString(R.string.importing_progress, index.coerceAtMost(total), total, name)
-    }
-
-    private fun dismissImportUi() {
-        importDialog?.dismiss()
-        importDialog = null
-        importProgress = null
-        importLabel = null
-    }
 
     private fun showError(message: String) {
-        dismissImportUi()
+        importUi.dismiss()
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.import_failed, message))
             .setPositiveButton(R.string.got_it, null)

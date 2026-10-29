@@ -122,7 +122,6 @@
     <string name="wifi_notification_text">%1$s</string>
 
     <string name="settings">设置</string>
-    <string name="keep_screen_on">阅读时屏幕常亮</string>
     <string name="keep_screen_on_on">屏幕常亮：开</string>
     <string name="keep_screen_on_off">屏幕常亮：关</string>
     <string name="done">完成</string>

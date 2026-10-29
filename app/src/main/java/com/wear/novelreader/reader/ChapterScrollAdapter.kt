@@ -17,8 +17,13 @@ class ChapterScrollAdapter(
     var chapterCount = 0
         set(value) {
             if (field == value) return
+            val previous = field
             field = value
-            notifyDataSetChanged()
+            when {
+                previous == 0 && value > 0 -> notifyItemRangeInserted(0, value)
+                previous > 0 && value == 0 -> notifyItemRangeRemoved(0, previous)
+                else -> notifyDataSetChanged()
+            }
         }
 
     private var textSizeSp = 16f
@@ -35,7 +40,7 @@ class ChapterScrollAdapter(
         this.textSizeSp = textSizeSp
         this.lineSpacing = lineSpacing
         this.textColor = textColor
-        notifyDataSetChanged()
+        notifyItemRangeChanged(0, itemCount, PAYLOAD_STYLE)
     }
 
     override fun getItemCount(): Int = chapterCount
@@ -58,6 +63,14 @@ class ChapterScrollAdapter(
         holder.binding.root.setOnClickListener { onTap() }
     }
 
+    override fun onBindViewHolder(holder: Holder, position: Int, payloads: MutableList<Any>) {
+        if (payloads.contains(PAYLOAD_STYLE)) {
+            holder.applyStyle(textSizeSp, lineSpacing, textColor)
+            return
+        }
+        super.onBindViewHolder(holder, position, payloads)
+    }
+
     inner class Holder(val binding: ItemChapterScrollBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
@@ -68,13 +81,21 @@ class ChapterScrollAdapter(
                 binding.chapterText.text = ""
                 return
             }
+            if (binding.chapterText.text.toString() != text) {
+                binding.chapterText.text = text
+            }
+            applyStyle(sizeSp, spacing, color)
+        }
+
+        fun applyStyle(sizeSp: Float, spacing: Float, color: Int) {
             binding.chapterText.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
             binding.chapterText.setTextColor(color)
             binding.chapterText.setLineSpacing(0f, spacing)
             binding.chapterText.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-            if (binding.chapterText.text.toString() != text) {
-                binding.chapterText.text = text
-            }
         }
+    }
+
+    private companion object {
+        const val PAYLOAD_STYLE = 1
     }
 }
