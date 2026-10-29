@@ -148,6 +148,19 @@ class ReaderActivity : ComponentActivity() {
         }
     }
 
+    private val chapterJumpLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val index = result.data?.getIntExtra(ChapterJumpActivity.EXTRA_CHAPTER_INDEX, -1) ?: -1
+            if (index in book.chapters.indices) {
+                hideMenu()
+                returnChapterIndex = -1
+                loadChapter(index, 0)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         app = application as NovelApp
@@ -258,6 +271,13 @@ class ReaderActivity : ComponentActivity() {
         binding.menuFontColor.setOnClickListener {
             hideMenu()
             fontColorLauncher.launch(Intent(this, FontColorActivity::class.java))
+        }
+        binding.menuJump.setOnClickListener {
+            hideMenu()
+            chapterJumpLauncher.launch(
+                Intent(this, ChapterJumpActivity::class.java)
+                    .putExtra(ChapterJumpActivity.EXTRA_BOOK_ID, book.id)
+            )
         }
         binding.menuKeepScreenOn.setOnClickListener { toggleKeepScreenOn() }
         binding.menuBrightnessSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {

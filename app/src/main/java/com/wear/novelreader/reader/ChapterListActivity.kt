@@ -24,6 +24,18 @@ class ChapterListActivity : ComponentActivity() {
 
     private lateinit var binding: ActivityChapterListBinding
 
+    private val jumpLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val index = result.data?.getIntExtra(ChapterJumpActivity.EXTRA_CHAPTER_INDEX, -1) ?: -1
+            if (index >= 0) {
+                setResult(RESULT_OK, Intent().putExtra(EXTRA_CHAPTER, index))
+                finish()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as NovelApp
@@ -50,6 +62,12 @@ class ChapterListActivity : ComponentActivity() {
         }
         binding.title.text = "${getString(R.string.chapter_list)} · ${book.chapters.size}"
         binding.backButton.setOnClickListener { finish() }
+        binding.jumpButton.setOnClickListener {
+            jumpLauncher.launch(
+                Intent(this, ChapterJumpActivity::class.java)
+                    .putExtra(ChapterJumpActivity.EXTRA_BOOK_ID, book.id)
+            )
+        }
         val chapterAdapter = ChapterAdapter(book, current, currentOffset) { index ->
             setResult(
                 RESULT_OK,
