@@ -2,6 +2,22 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.1.1] - 2026-10-30
+
+### 优化
+
+- `BookMeta` 使用章节起始偏移缓存，阅读百分比查询从 O(n) 降为 O(1)。
+- 章节文件改为缓冲直写，避免导入大文件时每个分块执行原子替换和 `fsync`。
+- 阅读进度写入失败会记录日志并重试一次，flush 超时会记录 warning。
+- 章节预加载避免和可见章节加载重复读取。
+- URI 导入开始前清理过期的缓存文件。
+- 章节跳转页改为 IO 加载书籍元数据，避免阻塞主线程。
+- `ChapterScrollAdapter` 样式刷新改用 payload 局部更新。
+- Wi-Fi 上传请求目录使用 UUID，并限制请求头大小。
+- `MultipartParser` 改为分块 boundary 扫描，减少逐字节读取。
+- 抽出 `ReaderWindowHelper`、`ReaderProgressController`、`ImportUiController`，减少 Activity 重复逻辑。
+- 新增 `BookMeta` 和 multipart 大文件跨缓冲测试；当前共 44 个 JVM 测试。
+
 ## [1.1] - 2026-10-28
 
 ### 新增

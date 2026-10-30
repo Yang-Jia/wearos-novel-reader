@@ -4,7 +4,7 @@
 
 - 应用名：腕上书
 - 包名：`com.wear.novelreader`
-- 版本：1.1
+- 版本：1.1.1
 - 最低系统：Wear OS 3+ / Android 11（API 30）
 - 目标版本：Android 14（API 34）
 - 编译版本：Android 15（API 35）
